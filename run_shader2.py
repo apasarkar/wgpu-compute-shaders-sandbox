@@ -17,9 +17,11 @@ def get_column_indices(col_ix) -> tuple[int, int]:
     start = col_ix * a.shape[0]
     return start, start + a.shape[0]
 
-a_shape = (32, 32)
-b_shape = (32, 32)
-c_shape = [a_shape[0], b_shape[1]]
+m, k, n = 16, 16, 16
+
+a_shape = (m, k)
+b_shape = (k, n)
+c_shape = (m, n)
 
 a = np.arange(0, a_shape[0] * a_shape[1]).astype(np.float32)
 b = np.arange(0, b_shape[0] * b_shape[1]).astype(np.float32)
