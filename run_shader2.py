@@ -1,55 +1,39 @@
-import numpy as np
+"""
+Simple compute example that performs basic matrix multiplication
+"""
 
-import wgpu
+import numpy as np
 from wgpu.utils.compute import compute_with_buffers
 
+# define matrix shapes
+m, k, n = 64, 64, 64
 
-dtype_mapping = {
-    np.int8: "b",
-    np.int16: "h",
-    np.int32: "i",
-    np.float16: "e",
-    np.float32: "f",
-}
+A_shape = (m, k)
+B_shape = (k, n)
 
+# create random matrices
+A = np.random.rand(A_shape[0] * A_shape[1]).astype(np.float32).reshape(A_shape, order="C")
+B = np.random.rand(B_shape[0] * B_shape[1]).astype(np.float32).reshape(B_shape, order="C")
 
-def get_column_indices(col_ix) -> tuple[int, int]:
-    start = col_ix * a.shape[0]
-    return start, start + a.shape[0]
-
-m, k, n = 16, 16, 16
-
-a_shape = (m, k)
-b_shape = (k, n)
-c_shape = (m, n)
-
-a = np.arange(0, a_shape[0] * a_shape[1]).astype(np.float32)
-b = np.arange(0, b_shape[0] * b_shape[1]).astype(np.float32)
-
-a = a.reshape(a_shape, order="C")
-b = b.reshape(b_shape, order="C")
-
+# define bindings
 bindings = {
-    0: a,
-    1: b,
-    3: np.array(a_shape),
-    4: np.array(b_shape),
-    5: np.array(c_shape)
+    0: A,
+    1: B,
+    3: np.array(A_shape, dtype=np.uint32),
+    4: np.array(B_shape, dtype=np.uint32),
 }
 
-
+# run shader
 out = compute_with_buffers(
     input_arrays=bindings,
-    output_arrays={2: (np.prod(c_shape), "f")},
-    shader=open(f"./matmul_strassen.wgsl").read(),
-    workgroups=(int(c_shape[0] / 16), int(c_shape[1] / 16), 1),
-    n=16
+    output_arrays={2: (np.prod((m, n)), "f")},
+    shader=open(f"./matmul_simple.wgsl").read(),
+    n=(m, n, 1)
 )
 
-shader_out = np.frombuffer(out[2], dtype=np.float32).reshape(c_shape)
+C = np.frombuffer(out[2], dtype=np.float32).reshape((m, n))
 
-print(np.allclose(a @ b, shader_out))
-
-print(np.linalg.norm(a @ b - shader_out, ord="fro"))
-
-print(a @ b - shader_out)
+print(np.allclose(A @ B, C))
+print(np.linalg.norm(A @ B - C, ord="fro") / np.linalg.norm(A @ B, ord="fro"))
+print(A @ B - C)
+print(C)
