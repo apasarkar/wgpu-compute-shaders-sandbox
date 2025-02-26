@@ -21,7 +21,7 @@ fn main(@builtin(global_invocation_id) gid: vec3<u32>) {
     // we make these varibles because we cannot pass individual array elements to a function
     // i.e. get_1d_index(A_shape[0]) is not possible
     let m: u32 = A_shape[0];
-    let k: u32 = A_shape[0];
+    let k: u32 = A_shape[1];
     let n: u32 = B_shape[1];
 
     // computes one element of C using A at row gid.y and B at column gid.x

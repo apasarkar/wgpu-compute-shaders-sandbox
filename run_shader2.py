@@ -6,7 +6,7 @@ import numpy as np
 from wgpu.utils.compute import compute_with_buffers
 
 # define matrix shapes
-m, k, n = 64, 64, 64
+m, k, n = 100, 200, 100
 
 A_shape = (m, k)
 B_shape = (k, n)
