@@ -8,6 +8,9 @@ from wgpu.utils.compute import compute_with_buffers
 # define matrix shapes
 m, k, n = 100, 200, 100
 
+# doesn't work, bug in shader
+# m, k, n = 200, 200, 100
+
 A_shape = (m, k)
 B_shape = (k, n)
 
