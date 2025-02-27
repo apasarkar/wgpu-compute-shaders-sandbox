@@ -1,15 +1,15 @@
 """
-Simple compute example that performs basic matrix multiplication
+Simple compute example that performs basic matrix multiplication.
+
+Uses linear arrays in storage buffers to represent matrices of arbitrary size since
+the wgsl standard library only supports matrix multiplication upto 4x4 matrices.
 """
 
 import numpy as np
 from wgpu.utils.compute import compute_with_buffers
 
 # define matrix shapes
-m, k, n = 100, 200, 100
-
-# doesn't work, bug in shader
-# m, k, n = 200, 200, 100
+m, k, n = 6, 7, 8
 
 A_shape = (m, k)
 B_shape = (k, n)
@@ -31,12 +31,14 @@ out = compute_with_buffers(
     input_arrays=bindings,
     output_arrays={2: (np.prod((m, n)), "f")},
     shader=open(f"./matmul_simple.wgsl").read(),
-    n=(m, n, 1)
+    n=(n, m, 1)
 )
 
+# get output
 C = np.frombuffer(out[2], dtype=np.float32).reshape((m, n))
 
-print(np.allclose(A @ B, C))
-print(np.linalg.norm(A @ B - C, ord="fro") / np.linalg.norm(A @ B, ord="fro"))
-print(A @ B - C)
-print(C)
+# check that results are the same as numpy, we can expect 7 decimal precision
+print(f"np.allclose():\n {np.allclose(A @ B, C)}\n")
+print(f"AB - C:\n{A @ B - C}\n")
+print(f"|| AB - C ||_F - || AB ||_F:\n{np.linalg.norm(A @ B - C, ord='fro') / np.linalg.norm(A @ B, ord='fro')}\n")
+print(f"C:\n{C}")
