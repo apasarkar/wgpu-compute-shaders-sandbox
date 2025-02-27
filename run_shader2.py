@@ -31,7 +31,7 @@ out = compute_with_buffers(
     input_arrays=bindings,
     output_arrays={2: (np.prod((m, n)), "f")},
     shader=open(f"./matmul_simple.wgsl").read(),
-    n=(n, m, 1)
+    n=(n, m, 1)  # n cols across "x dimension", m rows across "y dimension"
 )
 
 # get output
