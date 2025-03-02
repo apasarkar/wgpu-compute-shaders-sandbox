@@ -5,7 +5,7 @@ var<storage, read> A: array<f32>;
 var<storage, read> shape: array<u32>;
 
 @group(0) @binding(2)
-var<storage, read_write> N: array<f32>;
+var<storage, read_write> output: array<f32>;
 
 
 fn get_column_indices(col_ix: u32) -> vec2<u32> {
@@ -36,5 +36,5 @@ fn l2_norm(col_ix: u32) -> f32 {
 @workgroup_size(1)
 fn main(@builtin(global_invocation_id) index: vec3<u32>) {
     // returns l2 norm of columns of A
-    N[index[0]] = l2_norm(index[0]);
+    output[index[0]] = l2_norm(index[0]);
 }
