@@ -67,8 +67,6 @@ texture_uv = device.create_texture(
     sample_count=1,
 )
 
-sampler = device.create_sampler()
-
 with open("./rgb_to_ycbcr.wgsl", "r") as f:
     shader_src = f.read()
 
