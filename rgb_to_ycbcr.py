@@ -49,7 +49,8 @@ texture_y = device.create_texture(
     # use as storage texture since we do not need to sample it
     usage=wgpu.TextureUsage.COPY_DST | wgpu.TextureUsage.STORAGE_BINDING,
     dimension=wgpu.TextureDimension.d2,
-    format=wgpu.TextureFormat.rg8unorm,
+    # NOTE: we cannot use r8unorm for storage textures!!
+    format=wgpu.TextureFormat.r32float,
     mip_level_count=1,
     sample_count=1,
 )
@@ -60,7 +61,8 @@ texture_uv = device.create_texture(
     # use as storage texture since we do not need to sample it
     usage=wgpu.TextureUsage.COPY_DST | wgpu.TextureUsage.STORAGE_BINDING,
     dimension=wgpu.TextureDimension.d2,
-    format=wgpu.TextureFormat.rg8unorm,
+    # NOTE: we cannot use r8unorm for storage textures!!
+    format=wgpu.TextureFormat.rg32float,
     mip_level_count=1,
     sample_count=1,
 )
