@@ -1,7 +1,12 @@
+"""
+Example that shows how to use textures in a compute shader to convert an RGBA image to YCbCr.
+
+The shader uses workgroups to processes non-overlapping 8x8 blocks of the input rgba texture.
+"""
+
 import numpy as np
 import wgpu
 import imageio.v3 as iio
-import fastplotlib as fpl
 
 
 def size_from_array(data, dim):
@@ -22,7 +27,7 @@ def size_from_array(data, dim):
         return shape[2], shape[1], shape[0]
 
 
-# get example image, convert to rgba
+# get example image, add alpha channel of all ones
 image = iio.imread("imageio:astronaut.png")
 image_rgba = np.zeros((*image.shape[:-1], 4), dtype=np.uint8)
 image_rgba[..., :-1] = image
@@ -38,7 +43,7 @@ cbcr_size = size_from_array(image_rgba[::2, ::2, 0], dim=2)
 # create device
 device: wgpu.GPUDevice = wgpu.utils.get_default_device()
 
-# create texture
+# create texture for input rgba image
 texture_rgb = device.create_texture(
     label="rgba",
     size=rgba_size,
@@ -49,6 +54,7 @@ texture_rgb = device.create_texture(
     sample_count=1,
 )
 
+# write input texture to device queue
 device.queue.write_texture(
     {
         "texture": texture_rgb,
@@ -63,10 +69,12 @@ device.queue.write_texture(
     rgba_size
 )
 
+# texture for Y channel output
 texture_y = device.create_texture(
     label="y",
     size=y_size,
     # use as storage texture since we do not need to sample it
+    # COPY_SRC so we can copy the texture back from the gpu
     usage=wgpu.TextureUsage.COPY_SRC | wgpu.TextureUsage.STORAGE_BINDING,
     dimension=wgpu.TextureDimension.d2,
     # NOTE: we cannot use r8unorm for storage textures!!
@@ -75,6 +83,7 @@ texture_y = device.create_texture(
     sample_count=1,
 )
 
+# sample we will use to generate the CbCr channels
 chroma_sampler = device.create_sampler(
     # I don't think min filtering actually occurs for chroma sampling
     # since we are always sampling from the center of 4 pixels to create 1 subsampled new CbCr pixel
@@ -82,13 +91,14 @@ chroma_sampler = device.create_sampler(
     mag_filter=wgpu.FilterMode.linear,
 )
 
+# texture for CbCr channels
 texture_cbcr = device.create_texture(
     label="uv",
     size=cbcr_size,
     # use as storage texture since we do not need to sample it
     usage=wgpu.TextureUsage.COPY_SRC | wgpu.TextureUsage.STORAGE_BINDING,
     dimension=wgpu.TextureDimension.d2,
-    # NOTE: we cannot use r8unorm for storage textures!!
+    # we will use rg32float so we can store a pair of 2D textures for the Cb and Cr channels
     format=wgpu.TextureFormat.rg32float,
     mip_level_count=1,
     sample_count=1,
@@ -99,6 +109,7 @@ with open("./rgb_to_ycbcr.wgsl", "r") as f:
 
 shader_module = device.create_shader_module(code=shader_src)
 
+# compute in 8 x 8 blocks
 workgroup_size = 8
 
 workgroup_size_constants = {
@@ -106,6 +117,7 @@ workgroup_size_constants = {
     "group_size_y": workgroup_size,
 }
 
+# create compute pipeline
 pipeline: wgpu.GPUComputePipeline = device.create_compute_pipeline(
     layout=wgpu.AutoLayoutMode.auto,
     compute={
@@ -115,6 +127,7 @@ pipeline: wgpu.GPUComputePipeline = device.create_compute_pipeline(
     }
 )
 
+# create bindings for the texture resources and sampler
 bindings = [
     {
         "binding": 0,
@@ -134,11 +147,16 @@ bindings = [
     }
 ]
 
+# set layout
 layout = pipeline.get_bind_group_layout(0)
 bind_group = device.create_bind_group(layout=layout, entries=bindings)
 
-workgroups = np.ceil(np.asarray(image.shape[:2]) / workgroup_size).astype(int) + 1
+# make sure we have enough workgroups to process all blocks of the input image
+# each workgroup will process the pixels within one 8x8 block
+# the blocks are non-overlapping
+workgroups = np.ceil(np.asarray(image.shape[:2]) / workgroup_size).astype(int)
 
+# encode, submit
 command_encoder = device.create_command_encoder()
 compute_pass = command_encoder.begin_compute_pass()
 compute_pass.set_pipeline(pipeline)
@@ -147,6 +165,7 @@ compute_pass.dispatch_workgroups(*workgroups, 1)
 compute_pass.end()
 device.queue.submit([command_encoder.finish()])
 
+# read luminance output
 buffer_y = device.queue.read_texture(
     source={
         "texture": texture_y,
@@ -160,6 +179,7 @@ buffer_y = device.queue.read_texture(
     size=size_from_array(image[:, :, 0], dim=2)
 ).cast("f")
 
+# read CbCr output
 buffer_cbcr = device.queue.read_texture(
     source={
         "texture": texture_cbcr,
@@ -173,25 +193,21 @@ buffer_cbcr = device.queue.read_texture(
     size=size_from_array(image[::2, ::2, :2], dim=2)
 ).cast("f")
 
+# create numpy arrays
 Y = np.frombuffer(buffer_y, dtype=np.float32).reshape(image.shape[:2])
 CbCr = np.frombuffer(buffer_cbcr, dtype=np.float32).reshape(*image[::2, ::2, :2].shape)
 
-
-from skimage.color import rgb2ycbcr
-
-ycbcr = rgb2ycbcr(image)
-
-iw = fpl.ImageWidget(
-    data=[
-        Y, CbCr[..., 0], CbCr[..., 1],
-        ycbcr[..., 0], ycbcr[..., 1], ycbcr[..., 2],
-    ],
-    names=["Y", "Cb", "Cr", "Y-skimage", "Cb-skimage", "Cr-skimage"],
-    figure_shape=(2, 3),
-    figure_kwargs={"size": (1800, 1200)},
-    cmap="viridis"
-)
-
-iw.show()
-
-fpl.loop.run()
+# view result with fastplotlib ImageWidget
+# import fastplotlib as fpl
+#
+# iw = fpl.ImageWidget(
+#     data=[Y, CbCr[..., 0], CbCr[..., 1],],
+#     names=["Y", "Cb", "Cr"],
+#     figure_shape=(1, 3),
+#     figure_kwargs={"size": (1000, 400), "controller_ids": None},
+#     cmap="viridis"
+# )
+#
+# iw.show()
+#
+# fpl.loop.run()
