@@ -198,16 +198,16 @@ Y = np.frombuffer(buffer_y, dtype=np.float32).reshape(image.shape[:2])
 CbCr = np.frombuffer(buffer_cbcr, dtype=np.float32).reshape(*image[::2, ::2, :2].shape)
 
 # view result with fastplotlib ImageWidget
-# import fastplotlib as fpl
-#
-# iw = fpl.ImageWidget(
-#     data=[Y, CbCr[..., 0], CbCr[..., 1],],
-#     names=["Y", "Cb", "Cr"],
-#     figure_shape=(1, 3),
-#     figure_kwargs={"size": (1000, 400), "controller_ids": None},
-#     cmap="viridis"
-# )
-#
-# iw.show()
-#
-# fpl.loop.run()
+import fastplotlib as fpl
+
+iw = fpl.ImageWidget(
+    data=[Y, CbCr[..., 0], CbCr[..., 1],],
+    names=["Y", "Cb", "Cr"],
+    figure_shape=(1, 3),
+    figure_kwargs={"size": (1000, 400), "controller_ids": None},
+    cmap="viridis"
+)
+
+iw.show()
+
+fpl.loop.run()

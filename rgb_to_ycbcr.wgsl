@@ -42,6 +42,9 @@ fn main(@builtin(workgroup_id) wid: vec3<u32>) {
             // create luminance channel by converting to grayscale
             var L: f32 = (0.299 * px.r + 0.587 * px.g + 0.114 * px.b);
 
+            // the following is useful for debugging
+            // var L = f32(wid.x) + f32(wid.y);
+
             // store luma channel
             textureStore(tex_y, pos, vec4<f32>(L, 0, 0, 0));
         }
