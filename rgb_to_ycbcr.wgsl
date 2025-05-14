@@ -3,23 +3,24 @@
 @group(0) @binding(1)
 var tex_y: texture_storage_2d<r32float, write>;
 
-//@group(0) @binding(2)
-//var tex_uv: texture_storage_2d<rg32float, write>;
+@group(0) @binding(2)
+var tex_cbcr: texture_storage_2d<rg32float, write>;
 
-//override group_size_x: u32;
-//override group_size_y: u32;
+override group_size_x: u32;
+override group_size_y: u32;
 
-//const
 
-@compute @workgroup_size(16, 16)
+@compute @workgroup_size(group_size_x, group_size_y)
 fn main(@builtin(global_invocation_id) gid: vec3<u32>) {
+    // read array element i.e. "pixel" value
+    var px: vec4f = textureLoad(tex_rgba, gid.xy, 0);
 
-    var x = gid.x;
-    var y = gid.y;
+    var y: f32 = 0.299 * px.r + 0.587 * px.g + 0.114 * px.b;
 
-    var input_pixel: vec4f = textureLoad(tex_rgba, vec2(x, y), 0);
+    textureStore(tex_y, gid.xy, vec4<f32>(y, 0, 0, 0));
 
-    var output_y: f32 = 0.299 * input_pixel.r + 0.587 * input_pixel.g + 0.114 * input_pixel.b;
+    var cb: f32 = -0.1687 * px.r - 0.3313 * px.g + 0.5 * px.b + 128;
+    var cr: f32 = 0.5 * px.r - 0.4187 * px.g - 0.0813 * px.b + 128;
 
-    textureStore(tex_y, vec2(x, y), vec4<f32>(output_y, 0, 0, 0));
+    textureStore(tex_cbcr, gid.xy, vec4<f32>(cb, cr, 0, 0));
 }

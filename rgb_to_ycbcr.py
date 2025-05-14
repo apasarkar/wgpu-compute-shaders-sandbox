@@ -33,7 +33,8 @@ rgba_size = size_from_array(image_rgba, dim=2)
 
 # output
 y_size = size_from_array(image_rgba[:, :, 0], dim=2)
-uv_size = size_from_array(image_rgba[::2, ::2, 0], dim=2)
+cbcr_size = size_from_array(image_rgba[:, :, 0], dim=2)
+# cbcr_size = size_from_array(image_rgba[::2, ::2, 0], dim=2)
 
 # create device
 device: wgpu.GPUDevice = wgpu.utils.get_default_device()
@@ -75,9 +76,9 @@ texture_y = device.create_texture(
     sample_count=1,
 )
 
-texture_uv = device.create_texture(
+texture_cbcr = device.create_texture(
     label="uv",
-    size=uv_size,
+    size=cbcr_size,
     # use as storage texture since we do not need to sample it
     usage=wgpu.TextureUsage.COPY_SRC | wgpu.TextureUsage.STORAGE_BINDING,
     dimension=wgpu.TextureDimension.d2,
@@ -92,25 +93,21 @@ with open("./rgb_to_ycbcr.wgsl", "r") as f:
 
 shader_module = device.create_shader_module(code=shader_src)
 
+workgroup_size = 16
+
+workgroup_size_constants = {
+    "group_size_x": workgroup_size,
+    "group_size_y": workgroup_size,
+}
+
 pipeline: wgpu.GPUComputePipeline = device.create_compute_pipeline(
     layout="auto",
-    compute={"module": shader_module, "entry_point": "main"}
+    compute={
+        "module": shader_module,
+        "entry_point": "main",
+        "constants": workgroup_size_constants,
+    }
 )
-
-# binding_layouts = [
-#     {
-#         "binding": 0,
-#         "visibility": wgpu.ShaderStage.COMPUTE,
-#         "",
-#     },
-#     {
-#         "binding": 1,
-#         "visibility": wgpu.ShaderStage.COMPUTE,
-#         "buffer": {
-#             "type": wgpu.BufferBindingType.storage,
-#         },
-#     },
-# ]
 
 bindings = [
     {
@@ -121,26 +118,26 @@ bindings = [
         "binding": 1,
         "resource": texture_y.create_view()
     },
-    # {
-    #     "binding": 2,
-    #     "resource": texture_uv.create_view()
-    # }
+    {
+        "binding": 2,
+        "resource": texture_cbcr.create_view()
+    }
 ]
 
 layout = pipeline.get_bind_group_layout(0)
 bind_group = device.create_bind_group(layout=layout, entries=bindings)
 
-workgroups = np.ceil(np.asarray(image.shape[:2]) / 16).astype(int)
+workgroups = np.ceil(np.asarray(image.shape[:2]) / workgroup_size).astype(int)
 
 command_encoder = device.create_command_encoder()
 compute_pass = command_encoder.begin_compute_pass()
 compute_pass.set_pipeline(pipeline)
 compute_pass.set_bind_group(0, bind_group)
-compute_pass.dispatch_workgroups(*workgroups, 1)  # x y z
+compute_pass.dispatch_workgroups(*workgroups, 1)
 compute_pass.end()
 device.queue.submit([command_encoder.finish()])
 
-y_buffer = device.queue.read_texture(
+buffer_y = device.queue.read_texture(
     source={
         "texture": texture_y,
         "origin": (0, 0, 0),
@@ -154,9 +151,35 @@ y_buffer = device.queue.read_texture(
     size=size_from_array(image[:, :, 0], dim=2)
 ).cast("f")
 
-Y = np.frombuffer(y_buffer, dtype=np.float32).reshape(image.shape[:2])
+buffer_cbcr = device.queue.read_texture(
+    source={
+        "texture": texture_cbcr,
+        "origin": (0, 0, 0),
+        "mip_level": 0,
+    },
+    data_layout={
+        "offset": 0,
+        "bytes_per_row": image.shape[1] * 4 * 2,
+        # "rows_per_image": image.shape[0],
+    },
+    size=size_from_array(image[:, :, :2], dim=2)
+).cast("f")
 
-iw = fpl.ImageWidget(Y, cmap="gray")
+Y = np.frombuffer(buffer_y, dtype=np.float32).reshape(image.shape[:2])
+CbCr = np.frombuffer(buffer_cbcr, dtype=np.float32).reshape(*image.shape[:2], 2)
+
+
+from skimage.color import rgb2ycbcr
+
+ycbcr = rgb2ycbcr(image)
+
+iw = fpl.ImageWidget(
+    data=[Y, CbCr[..., 0], CbCr[..., 1], ycbcr[..., 0], ycbcr[..., 1], ycbcr[..., 2]],
+    names=["Y", "Cb", "Cr", "Y-skimage", "Cb-skimage", "Cr-skimage"],
+    figure_shape=(2, 3),
+    cmap="gray"
+)
+
 iw.show()
 
 fpl.loop.run()
