@@ -33,8 +33,7 @@ rgba_size = size_from_array(image_rgba, dim=2)
 
 # output
 y_size = size_from_array(image_rgba[:, :, 0], dim=2)
-cbcr_size = size_from_array(image_rgba[:, :, 0], dim=2)
-# cbcr_size = size_from_array(image_rgba[::2, ::2, 0], dim=2)
+cbcr_size = size_from_array(image_rgba[::2, ::2, 0], dim=2)
 
 # create device
 device: wgpu.GPUDevice = wgpu.utils.get_default_device()
@@ -76,6 +75,13 @@ texture_y = device.create_texture(
     sample_count=1,
 )
 
+chroma_sampler = device.create_sampler(
+    # I don't think min filtering actually occurs for chroma sampling
+    # since we are always sampling from the center of 4 pixels to create 1 subsampled new CbCr pixel
+    min_filter=wgpu.FilterMode.linear,
+    mag_filter=wgpu.FilterMode.linear,
+)
+
 texture_cbcr = device.create_texture(
     label="uv",
     size=cbcr_size,
@@ -93,7 +99,7 @@ with open("./rgb_to_ycbcr.wgsl", "r") as f:
 
 shader_module = device.create_shader_module(code=shader_src)
 
-workgroup_size = 16
+workgroup_size = 8
 
 workgroup_size_constants = {
     "group_size_x": workgroup_size,
@@ -101,7 +107,7 @@ workgroup_size_constants = {
 }
 
 pipeline: wgpu.GPUComputePipeline = device.create_compute_pipeline(
-    layout="auto",
+    layout=wgpu.AutoLayoutMode.auto,
     compute={
         "module": shader_module,
         "entry_point": "main",
@@ -121,13 +127,17 @@ bindings = [
     {
         "binding": 2,
         "resource": texture_cbcr.create_view()
+    },
+    {
+        "binding": 3,
+        "resource": chroma_sampler,
     }
 ]
 
 layout = pipeline.get_bind_group_layout(0)
 bind_group = device.create_bind_group(layout=layout, entries=bindings)
 
-workgroups = np.ceil(np.asarray(image.shape[:2]) / workgroup_size).astype(int)
+workgroups = np.ceil(np.asarray(image.shape[:2]) / workgroup_size).astype(int) + 1
 
 command_encoder = device.create_command_encoder()
 compute_pass = command_encoder.begin_compute_pass()
@@ -146,7 +156,6 @@ buffer_y = device.queue.read_texture(
     data_layout={
         "offset": 0,
         "bytes_per_row": image.shape[1] * 4,
-        # "rows_per_image": image.shape[0],
     },
     size=size_from_array(image[:, :, 0], dim=2)
 ).cast("f")
@@ -159,14 +168,13 @@ buffer_cbcr = device.queue.read_texture(
     },
     data_layout={
         "offset": 0,
-        "bytes_per_row": image.shape[1] * 4 * 2,
-        # "rows_per_image": image.shape[0],
+        "bytes_per_row": image.shape[1] * 4,
     },
-    size=size_from_array(image[:, :, :2], dim=2)
+    size=size_from_array(image[::2, ::2, :2], dim=2)
 ).cast("f")
 
 Y = np.frombuffer(buffer_y, dtype=np.float32).reshape(image.shape[:2])
-CbCr = np.frombuffer(buffer_cbcr, dtype=np.float32).reshape(*image.shape[:2], 2)
+CbCr = np.frombuffer(buffer_cbcr, dtype=np.float32).reshape(*image[::2, ::2, :2].shape)
 
 
 from skimage.color import rgb2ycbcr
@@ -174,10 +182,14 @@ from skimage.color import rgb2ycbcr
 ycbcr = rgb2ycbcr(image)
 
 iw = fpl.ImageWidget(
-    data=[Y, CbCr[..., 0], CbCr[..., 1], ycbcr[..., 0], ycbcr[..., 1], ycbcr[..., 2]],
+    data=[
+        Y, CbCr[..., 0], CbCr[..., 1],
+        ycbcr[..., 0], ycbcr[..., 1], ycbcr[..., 2],
+    ],
     names=["Y", "Cb", "Cr", "Y-skimage", "Cb-skimage", "Cr-skimage"],
     figure_shape=(2, 3),
-    cmap="gray"
+    figure_kwargs={"size": (1800, 1200)},
+    cmap="viridis"
 )
 
 iw.show()
