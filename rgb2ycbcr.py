@@ -108,4 +108,4 @@ def run_shader():
 
     iw.set_data([Y, CbCr[..., 0], CbCr[..., 1]])
 
-iw.figure.add_animations(run_shader)
+run_shader()
