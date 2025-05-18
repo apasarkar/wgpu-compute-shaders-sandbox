@@ -11,6 +11,9 @@ var tex_cbcr: texture_storage_2d<rg32float, write>;
 @group(0) @binding(3)
 var chroma_sampler: sampler;
 
+@group(0) @binding(4)
+var<storage, read> dct_basis: array<vec4f>;
+
 // block size
 override group_size_x: u32;
 override group_size_y: u32;
@@ -43,7 +46,7 @@ fn main(@builtin(workgroup_id) wid: vec3<u32>) {
             var luma: f32 = (0.299 * px.r + 0.587 * px.g + 0.114 * px.b);
 
             // the following is useful for debugging
-//            var luma = f32(wid.x) + f32(wid.y);
+            // var luma = f32(wid.x) + f32(wid.y);
 
             // store luma channel
             textureStore(tex_y, pos, vec4<f32>(luma, 0, 0, 0));

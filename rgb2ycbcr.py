@@ -4,6 +4,7 @@ import imageio.v3 as iio
 
 import wgpu
 from utils import Texture, DEVICE, make_bindings
+from jpeg_utils import block_size, dct_basis, zigzag
 
 
 # get example image, add alpha channel of all ones
@@ -34,6 +35,8 @@ chroma_sampler = DEVICE.create_sampler(
     mag_filter=wgpu.FilterMode.linear,
 )
 
+dct_basis_buffer = DEVICE.create_buffer_with_data(data=dct_basis, usage=wgpu.BufferUsage.STORAGE)
+
 resources = [
     texture_rgba.texture.create_view(),
     texture_y.texture.create_view(),
@@ -42,6 +45,12 @@ resources = [
 ]
 
 bindings = make_bindings(resources)
+bindings.append(
+    {
+        "binding": 4,
+        "resource": {"buffer": dct_basis_buffer, "offset": 0, "size": dct_basis_buffer.size},
+    },
+)
 
 #%% visualization
 
@@ -66,12 +75,9 @@ def run_shader():
 
     shader_module = DEVICE.create_shader_module(code=shader_src)
 
-    # compute in 8 x 8 blocks
-    workgroup_size = 8
-
     workgroup_size_constants = {
-        "group_size_x": workgroup_size,
-        "group_size_y": workgroup_size,
+        "group_size_x": block_size,
+        "group_size_y": block_size,
     }
 
     # create compute pipeline
@@ -92,7 +98,7 @@ def run_shader():
     # make sure we have enough workgroups to process all blocks of the input image
     # each workgroup will process the pixels within one 8x8 block
     # the blocks are non-overlapping
-    workgroups = np.ceil(np.asarray(image.shape[:2]) / workgroup_size).astype(int)
+    workgroups = np.ceil(np.asarray(image.shape[:2]) / block_size).astype(int)
 
     # encode, submit
     command_encoder = DEVICE.create_command_encoder()
