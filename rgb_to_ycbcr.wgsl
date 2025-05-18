@@ -12,7 +12,9 @@ var tex_cbcr: texture_storage_2d<rg32float, write>;
 var chroma_sampler: sampler;
 
 @group(0) @binding(4)
-var<storage, read> dct_basis: array<vec4f>;
+// 64 basis, each of size 8x8, vec4f can store 4 elements
+// so (64 * 8 * 8) / 4 gives the number of vec4f needed for the DCT basis buffer
+var<storage, read> dct_basis: array<vec4f, 1024>;
 
 // block size
 override group_size_x: u32;
