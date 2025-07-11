@@ -9,16 +9,8 @@ var<storage, read> visitation_dim1: array<u32>;
 @group(0) @binding(2)
 var<storage, read> visitation_dim2: array<u32>;
 
-//Each 8 x 8 block has a variable length RLE. This code specifies the start location to write this RLE in the out_data buffer.
 @group(0) @binding(3)
-var<storage, read> start_indices: array<u32>;
-
-//This code specifies length of RLE for each 8 x 8. 
-@group(0) @binding(4)
-var<storage, read> rle_lengths: array<u32>;
-
-@group(0) @binding(5)
-var<storage,read_write> out_data: array<u32>;
+var<storage,read_write> total_length: array<u32>;
 
 const n_rows = u32(512);  // m_rows
 const n_cols = u32(512);  // n_cols
@@ -38,17 +30,14 @@ fn main(@builtin(workgroup_id) wg_id : vec3<u32>,
     var start_pt_d2: u32=d2*8;
 
     var current_wkgp_index: u32 = (d1*wkgp_d2 + d2);
+    var generic_start_index: u32=  current_wkgp_index * 128;
 
-    var total_length: u32 = rle_lengths[current_wkgp_index];
-    var generic_start_index = start_indices[current_wkgp_index];
     
-    
-    // first column of U is the same as A
+        // first column of U is the same as A
     var is_zeros: bool = false;
     var counter: u32 = 0;
     var save_counter: u32 = 0;
-    var i: u32 = 0;
-    while (save_counter < total_length) {
+    for (var i: u32 = 0; i < 64; i++) {
         // For now we run length encode everything, including the DC component
         // First get the integer value
         var dim1_displacement: u32 = visitation_dim1[i];
@@ -68,31 +57,35 @@ fn main(@builtin(workgroup_id) wg_id : vec3<u32>,
             if (is_zeros) {
                 is_zeros = false;
                 while (counter > 16) {
-                    out_data[generic_start_index + save_counter] = 15;
+                    // out_data[generic_start_index + save_counter] = 15;
                     save_counter += 1;
-                    out_data[generic_start_index + save_counter] = 0;
+                    // out_data[generic_start_index + save_counter] = 0;
                     save_counter += 1;
                     counter -= 16;
                 }
                 if (counter > 0) {
-                    out_data[generic_start_index + save_counter] = counter;
+                    // out_data[generic_start_index + save_counter] = counter;
                     save_counter += 1;
-                    out_data[generic_start_index + save_counter] = curr_value;
+                    // out_data[generic_start_index + save_counter] = curr_value;
                     save_counter += 1;
                 }
                 counter = 0;
             } else {
-                out_data[generic_start_index + save_counter] = 0;
+                // out_data[generic_start_index + save_counter] = 0;
                 save_counter += 1;
-                out_data[generic_start_index + save_counter] = curr_value;
+                // out_data[generic_start_index + save_counter] = curr_value;
                 save_counter += 1;
                 is_zeros = false;
                 counter = 0;
             }
 
         }
-        i += 1;
 
 
     }
+    // If we are writing out an explicit save counter, we don't need EOF delimiters
+    // out_data[generic_start_index + save_counter] = 132435;
+    // save_counter += 1; 
+    // out_data[generic_start_index + save_counter] = 132435;
+    total_length[current_wkgp_index] = save_counter;
 }
