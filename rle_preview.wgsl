@@ -1,5 +1,5 @@
 @group(0) @binding(0)
-var<storage, read> in_data: array<u32>;
+var<storage, read> in_data: array<i32>;
 
 //For now provide run length as an explicit sequence of visition values in dim1
 @group(0) @binding(1)

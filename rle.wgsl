@@ -1,5 +1,5 @@
 @group(0) @binding(0)
-var<storage, read> in_data: array<u32>;
+var<storage, read> in_data: array<i32>;
 
 //For now provide run length as an explicit sequence of visition values in dim1
 @group(0) @binding(1)
@@ -18,7 +18,7 @@ var<storage, read> start_indices: array<u32>;
 var<storage, read> rle_lengths: array<u32>;
 
 @group(0) @binding(5)
-var<storage,read_write> out_data: array<u32>;
+var<storage,read_write> out_data: array<i32>;
 
 const n_rows = u32(512);  // m_rows
 const n_cols = u32(512);  // n_cols
@@ -45,7 +45,7 @@ fn main(@builtin(workgroup_id) wg_id : vec3<u32>,
     
     // first column of U is the same as A
     var is_zeros: bool = false;
-    var counter: u32 = 0;
+    var counter: i32 = 0;
     var save_counter: u32 = 0;
     var i: u32 = 0;
     while (save_counter < total_length) {
