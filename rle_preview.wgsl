@@ -30,10 +30,9 @@ fn main(@builtin(workgroup_id) wg_id : vec3<u32>,
     var start_pt_d2: u32=d2*8;
 
     var current_wkgp_index: u32 = (d1*wkgp_d2 + d2);
-    var generic_start_index: u32=  current_wkgp_index * 128;
+   // var generic_start_index: u32=  current_wkgp_index * 128;
 
-    
-        // first column of U is the same as A
+
     var is_zeros: bool = false;
     var counter: u32 = 0;
     var save_counter: u32 = 0;
